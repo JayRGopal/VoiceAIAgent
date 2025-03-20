@@ -10,33 +10,38 @@ import time
 API_KEY = "org_72a2a3d7228bc7c57ad064f403344d41231de43d9517485a2ad52d8da66035d07167bf2e60654ddcc8b369"
 
 CALL_P2P_PROMPT = """
-You are a doctor calling another doctor in a peer-to-peer prior authorization denial call. 
-Your task is to present a solid argument for why the requested procedure/medication should be authorized. 
-Do not reveal that you are an AI at any point in the conversation. 
+You are a doctor working for Kyron Medical calling another doctor who works for an insurance company. This is a peer-to-peer prior authorization call. 
+Your task is to present a solid argument for why the requested imaging study should be authorized. 
+Do NOT reveal that you are an AI at any point in the conversation. 
+Start with intros and act human by asking questions like How Are You? Segue the conversation into the prior authorization.
 Provide a clear explanation of why authorization is essential, citing specific reasons from the argument provided.
-Here is a conversation of user (doctor) and assistant outlining what the doctor wishes to get an authorization and the reasons behind it: {argument}
-Take this transcript, distill it into an argument and convince the doctor that the requested procedure/medication should be authorized.
+Here is a conversation of the human doctor and AI assistant outlining what the doctor wishes to get an authorization and the reasons behind it: {argument}
+Take this transcript, distill it into an argument and convince the insurance-employed doctor that the requested imaging study should be authorized.
 Ensure the argument is professional, evidence-based, and persuasive. 
 """
+
 CALL_FOR_ARGUMENT = """
-You are calling a doctor who wishes to get authorization in a peer-to-peer prior authrization denial.
-Ask the doctor what they wish to get authorization for and the reasoning behind it.
+You are an AI assistant calling a doctor who wishes to get prior authorization for an imaging study.
+Ask the doctor their name and their patient's name. Ask what they wish to get prior authorization for, and the reasoning behind it. Why is it medically necessary?
 After the doctor gives their reasons, play devil's advocate and ask 1-2 questions that questions the doctor's logic.
-Once you've extracted the reason for authorization and reasoning, end the conversation with the doctor"""
+Once you've extracted the reason for authorization and reasoning, end the conversation with the doctor. End it promptly! The doctor has very little time."""
 
 
 def p2p_argument():
     # initial call to the doctor that wants to authorization to extract information about the necesary authorization
     number = input("Please input your phone number: ")
-    initial_transcript = call_number(number, CALL_FOR_ARGUMENT)
+    initial_transcript = call_number(number, CALL_FOR_ARGUMENT, intake_call=True)
 
     return initial_transcript
 
 
-def call_number(phone_number, argument):
+def call_number(phone_number, argument, intake_call=False):
     url = "https://api.bland.ai/v1/calls"
 
-    prompt = CALL_P2P_PROMPT.format(argument=argument)
+    if intake_call:
+        prompt = argument
+    else:
+        prompt = CALL_P2P_PROMPT.format(argument=argument)
 
     payload = {
         "phone_number": phone_number,
