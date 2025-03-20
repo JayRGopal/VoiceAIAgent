@@ -46,7 +46,7 @@ def call_number(phone_number, argument, intake_call=False):
     payload = {
         "phone_number": phone_number,
         "task": prompt,
-        "voice": "Josh",
+        "voice": "Brady",
         "wait_for_greeting": False,
         "block_interruptions": False,
         "interruption_threshold": 100,
