@@ -1,13 +1,7 @@
 import requests
 import time
 
-
-### Things to tweak:
-## 1. use LLM to summarize information in transcript to provide to Bland for P2P Call
-## 2. take in phone number of P2P during initial call, not as an input
-## 3. prompt engineering + put API_KEY into environment variable
-
-
+# Use the API key directly in the code
 API_KEY = "org_72a2a3d7228bc7c57ad064f403344d41231de43d9517485a2ad52d8da66035d07167bf2e60654ddcc8b369"
 
 CALL_P2P_PROMPT = """
@@ -27,15 +21,21 @@ After the doctor gives their reasons, play devil's advocate and ask 1-2 question
 Once you've extracted the reason for authorization and reasoning, end the conversation with the doctor. End it promptly! The doctor has very little time."""
 
 
-def p2p_argument():
-    # initial call to the doctor that wants to authorization to extract information about the necesary authorization
-    number = input("Please input your phone number: ")
-    initial_transcript = call_number(number, CALL_FOR_ARGUMENT)
-
+def p2p_argument(phone_number=None):
+    """
+    Initial call to the doctor that wants authorization to extract information about the necessary authorization.
+    Now accepts phone_number as a parameter for API usage.
+    """
+    if not phone_number:
+        phone_number = input("Please input your phone number: ")
+    
+    print(f"Initiating call to {phone_number} for doctor's argument")
+    initial_transcript = call_number(phone_number, CALL_FOR_ARGUMENT)
     return initial_transcript
 
 
 def call_number(phone_number, prompt):
+    """Make a call to the provided phone number with the given prompt"""
     url = "https://api.bland.ai/v1/calls"
 
     payload = {
@@ -58,7 +58,9 @@ def call_number(phone_number, prompt):
     }
 
     try:
+        print(f"Making API call to Bland.ai for phone number: {phone_number}")
         response = requests.post(url, json=payload, headers=headers)
+        print(f"Bland.ai API response status: {response.status_code}")
 
         if response.status_code == 200:
             call_data = response.json()
@@ -69,10 +71,14 @@ def call_number(phone_number, prompt):
                 return wait_for_transcript(call_id)
             else:
                 print("Error: No call_id returned.")
+                return None
         else:
             print(f"Error: {response.status_code} - {response.text}")
+            return None
     except requests.exceptions.RequestException as e:
         print(f"Error making request: {e}")
+        return None
+
 
 def wait_for_transcript(call_id, check_interval=5, timeout=600):
     """Polls the API until the call is completed and retrieves the transcript."""
@@ -82,6 +88,7 @@ def wait_for_transcript(call_id, check_interval=5, timeout=600):
         "Content-Type": "application/json"
     }
 
+    print(f"Waiting for call {call_id} to complete...")
     elapsed_time = 0
     while elapsed_time < timeout:
         try:
@@ -89,6 +96,7 @@ def wait_for_transcript(call_id, check_interval=5, timeout=600):
             if response.status_code == 200:
                 call_details = response.json()
                 status = call_details.get("status", "")
+                print(f"Call status: {status}")
 
                 if status == "completed":
                     transcript = call_details.get("concatenated_transcript", "No transcript available")
@@ -104,31 +112,52 @@ def wait_for_transcript(call_id, check_interval=5, timeout=600):
 
         time.sleep(check_interval)
         elapsed_time += check_interval
+        print(f"Waited {elapsed_time} seconds...")
 
     print("Timed out waiting for the call to complete.")
     return None
 
+
 def summarize_with_ollama(transcript):
+    """Use Ollama to summarize the transcript"""
     url = "http://localhost:11434/api/generate"
 
     formatted_prompt = CALL_P2P_PROMPT.format(argument=transcript)
-    refine_prompt = f"Given the following prompt:\n\n'''{formatted_prompt}'''\n\nExplain the pros and cons of this prompt, and then give back a better prompt that's long and thorough yet concise."
-    
     
     payload = {
         "model": "llama3",  # or "mistral", "gemma" etc.
-        "prompt": refine_prompt,
+        "prompt": formatted_prompt,
         "stream": False
     }
     
     try:
+        print("Sending transcript to Ollama for summarization...")
         response = requests.post(url, json=payload)
         if response.status_code == 200:
             result = response.json()
-            return result.get('response', 'No summary generated.')
+            summary = result.get('response', 'No summary generated.')
+            print("Summarization complete.")
+            return summary
         else:
             print(f"Ollama Error: {response.status_code} - {response.text}")
             return "Error generating summary."
     except requests.exceptions.RequestException as e:
         print(f"Error connecting to Ollama: {e}")
         return "Connection error."
+
+
+# This allows the script to be run directly for testing
+if __name__ == "__main__":
+    def main():
+        # Receive doctor's arguments
+        phone_number = input("Please input your phone number: ")
+        argument = p2p_argument(phone_number)
+        print(argument)
+
+        new_prompt = summarize_with_ollama(argument)
+        p2p_number = input("Please input the phone number of who you wish for me to call: ")
+
+        # Call number and return transcript
+        call_number(p2p_number, new_prompt)
+
+    main()
